@@ -1,0 +1,50 @@
+
+0) Download Pipeline Artifact
+Destination directory
+/srv/agent/_work/r8/a/mpt-notification-ecsfargate
+
+1) ecs-cluster 
+aws ecs create-cluster --cluster-name ecs-ems-dev-uea1-mpt
+
+2) ecs-register-task-definition
+
+inline script
+task_version=$(aws ecs register-task-definition --cli-input-json file:///srv/agent/_work/r8/a/mpt-notification-ecsfargate/notificationdrop/fargate-task-definition-notification.json | jq --raw-output '.taskDefinition.revision')
+
+echo "##vso[task.setvariable variable=task_version;]$task_version"
+
+
+3) ecs-service
+echo "a- $(task_version)"
+
+svc_status=$(aws ecs list-services --cluster ecs-ems-dev-uea1-mpt | jq --raw-output '.serviceArns[]' )
+
+echo $svc_status
+
+if [ "$svc_status" == "arn:aws:ecs:us-east-1:732284450354:service/ecs-ems-dev-uea1-mpt/mptnotificationapisvc" ]
+
+then  
+  aws ecs update-service --cluster ecs-ems-dev-uea1-mpt  --service mptnotificationapisvc --task-definition mpt-notificationapi-td:$(task_version)
+
+else  
+  aws ecs create-service --cluster ecs-ems-dev-uea1-mpt  --service-name mptnotificationapisvc --task-definition mpt-notificationapi-td:$(task_version) --desired-count 1 --launch-type FARGATE  --platform-version LATEST  --network-configuration "awsvpcConfiguration={subnets=[subnet-0e5759a2736a649d7,subnet-0a82f64480c0a90d3,subnet-0afe17075a7489414],securityGroups=[sg-09d53f3c92d35f88c],assignPublicIp=ENABLED}" --load-balancers='[{"targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:732284450354:targetgroup/ecs-mpt-dev-notificationapi/1d246c322eaaad27","containerName": "notificationapi","containerPort": 80}]'
+
+fi
+
+4) AWS Credentials
+mpt-dev-sc
+
+when relasingi happen taking which branch?
+can you guide me 
+
+
+
+UPDATE ANOTHER VARIABLE AND RUN ECS LETS SEE EHETHER THE SAME SERIVEC IS UPDATED ? 
+i wont do anything 
+i will try i will check whith him 
+can you 
+i will check and update 
+
+
+may i know the waht is the issue ? UDay
+

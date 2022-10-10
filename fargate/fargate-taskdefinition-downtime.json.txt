@@ -1,0 +1,36 @@
+{
+  "family": "mpt-downtimeapi-td",
+  "networkMode": "awsvpc",
+  "executionRoleArn": "ecssectretsexecutionrole-ems-uea1-mpt",
+  "taskRoleArn": "ecssectretsexecutionrole-ems-uea1-mpt",
+  "containerDefinitions": [{
+    "name": "downtimeapi",
+    "image": "732284450354.dkr.ecr.us-east-1.amazonaws.com/ems-business-applications/mpt-downtime-ecsfargate:#{Build.BuildNumber}#",
+    "logConfiguration": {
+          "logDriver": "awslogs",
+          "options": {
+              "awslogs-group": "/aws/ecs/mpt-downtimeapi-td",
+              "awslogs-region": "us-east-1",
+              "awslogs-create-group": "true",
+              "awslogs-stream-prefix": "aws/ecs"
+      }
+    },
+  "environment": [ 
+      {
+        "name": "ASPNETCORE_ENVIRONMENT",
+        "value": "#ASPNETCORE_ENVIRONMENT#"
+      }
+   ],
+    "portMappings": [{
+      "containerPort": 80,
+      "hostPort": 80,
+      "protocol": "tcp"
+    }],
+    "essential": true
+  }],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "256",
+  "memory": "2048"
+}

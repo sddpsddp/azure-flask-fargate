@@ -1,0 +1,140 @@
+CI of docker build and push 
+
+pool:
+  name: 'ems-ubuntu-1804'
+
+trigger:
+ branches:
+  include: 
+  - master
+  #- develop
+  #- features/*
+  #- defects/*
+ paths:
+  include:
+  - Jabil.MPT.User.API/*
+  
+variables:
+- group: MPT
+- name: GITVERSION_NUGETVERSIONV2
+  value: $(Build.BuildNumber)
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: EMS Business Applications/devops-pipeline-templates
+
+name: $(MajorVersion).$(MinorVersion).$(Patch)-$(date:yy)$(DayOfYear)$(rev:.r)
+
+jobs:
+- job: SonarQubeAnalyze
+  pool:
+    name: ems-vs2019
+    demands: dotnetcoresdk
+
+  steps:
+  - task: SonarQubePrepare@5
+    inputs:
+      SonarQube: 'DigitalFactory - SonarQube Service Connection-EMS Business Applications'
+      scannerMode: 'MSBuild'
+      projectKey: '$(Build.DefinitionName).hcl-bapp'
+
+  - task: UseDotNet@2
+    displayName: Use .NET 6.0
+    inputs:
+     packageType: 'sdk'
+     version: '6.0.x'
+
+  - task: DotNetCoreCLI@2
+    displayName: 'Build'
+    inputs:
+      command: 'build'
+      projects: 'Jabil.MPT.User.API/**/*.csproj'
+      arguments: '--configuration Release'
+
+  - task: SonarQubeAnalyze@5
+
+  - task: SonarQubePublish@5
+    inputs:
+      pollingTimeoutSec: '300'
+
+- job:
+  pool:
+    name: ems-ubuntu-1804
+  steps:
+  - task: replacetokens@5
+    displayName: 'Replace image version'
+    inputs:
+      rootDirectory: '$(System.DefaultWorkingDirectory)/Jabil.MPT.User.API/Jabil.MPT.User'
+      targetFiles: |
+        **/fargate/*.json
+      tokenPrefix: '#{'
+      tokenSuffix: '}#'
+  - task: CopyFiles@2
+    inputs:
+      SourceFolder: '$(System.DefaultWorkingDirectory)/Jabil.MPT.User.API/Jabil.MPT.User/fargate'
+      Contents: 'fargate-task-definition-user.json'
+      TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+  - task: PowerShell@2
+    displayName: 'Clean up orphaned containers and locally-built images'
+    condition: always()
+    inputs:
+      targetType: 'inline'
+      script: 'Invoke-Expression ((New-Object System.Net.WebClient).DownloadString("https://jabartifacts.blob.core.windows.net/build/clearlocallybuiltimages.ps1"))'
+      failOnStderr: true
+      pwsh: true
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      pathToPublish: '$(Build.ArtifactStagingDirectory)'
+      artifactName: userdrop
+  - task: CopyFiles@2
+    inputs:
+      targetFolder: '$(Build.ArtifactStagingDirectory)'    
+
+  - task: PublishBuildArtifacts@1    
+    displayName: 'Publish Artifact: drop'
+    inputs:
+      PathtoPublish: '$(build.artifactstagingdirectory)'
+
+- job: DockerBuild
+  pool:
+    name: ems-ubuntu-1804
+  steps:
+  - task: Docker@2
+    displayName: 'Docker build'
+    inputs:
+      command: 'build'
+      Dockerfile: 'Jabil.MPT.User.API/Jabil.MPT.User/Dockerfile'
+      buildContext: "$(Build.SourcesDirectory)"
+      tags: "$(Build.BuildNumber)"
+      repository: "ems-business-applications/$(Build.DefinitionName)"
+      # arguments: '--build-arg NUGET_PAT=$(NUGET_PAT)'
+    
+  - task: ECRPushImage@1
+    displayName: 'Push to AWS ECR'
+    condition: and(succeeded(), or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), eq(variables['Build.SourceBranch'], 'refs/heads/architecturebranch_fargate'), startswith(variables['Build.SourceBranch'], 'refs/heads/release/'), startswith(variables['Build.SourceBranch'], 'refs/heads/features/'), eq(variables['Build.SourceBranch'], 'refs/heads/features/devops'), eq(variables['Build.SourceBranch'], 'refs/heads/unstable')), ne(variables['Build.Reason'], 'PullRequest'))
+    inputs:
+      awsCredentials: '$(AWS_SERVICE_CONNECTION)'
+      regionName: '$(AWS_REGION)'
+      imageSource: 'imagename'
+      sourceImageName: 'ems-business-applications/$(Build.DefinitionName)'
+      sourceImageTag: '$(Build.BuildNumber)'
+      repositoryName: 'ems-business-applications/$(Build.DefinitionName)'
+      pushTag: '$(Build.BuildNumber)'
+      autoCreateRepository: true
+      outputVariable: 'CONTAINERIMAGEURL'
+	  
+	  
+
+- task: CopyPublishBuildArtifacts@1
+  inputs:
+    CopyRoot: 'D:\a\1\s\SampleWebApplication\'
+    Contents: 'SampleWebApplication.csproj'
+    ArtifactName: 'SampleWebApplication.csproj'
+    ArtifactType: 'Container'
+	
+	
+	
